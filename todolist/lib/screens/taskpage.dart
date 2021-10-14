@@ -17,17 +17,28 @@ class TaskPage extends StatefulWidget {
 class _TaskPageState extends State<TaskPage> {
   DatabaseHelper _dbHelper = DatabaseHelper();
 
-  FocusNode _titleFocus, _descriptionFocus, _todoFocus;
-
+  final FocusNode _todoFocus = FocusNode();
+  final FocusNode _titleFocus = FocusNode();
+  final FocusNode _descriptionFocus = FocusNode();
 
   String _taskTitle = "";
+  String _taskDesc = "";
   int _taskId = 0;
+
 
   @override
   void initState() {
+    //set visibilty to true
     _taskTitle = widget.task.title;
+    _taskDesc = widget.task.description;
     _taskId = widget.task.id;
     super.initState();
+  }
+
+  void dispose() {
+    _todoFocus.dispose();
+    _titleFocus.dispose();
+    _descriptionFocus.dispose();
   }
 
   @override
@@ -39,6 +50,7 @@ class _TaskPageState extends State<TaskPage> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                /** Title section */
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     vertical: 24.0,
@@ -60,14 +72,21 @@ class _TaskPageState extends State<TaskPage> {
                       ),
                       Expanded(
                         child: TextField(
+                          focusNode: _titleFocus,
                           onSubmitted: (value) async {
-                            print("Field Value: $value");
                             if (value != "") {
-                              DatabaseHelper _dbHelper = DatabaseHelper();
                               Task _newTask = Task(title: value);
-                              await _dbHelper.insertTask(_newTask);
-                              // setState(() {});
+                              _taskId = await _dbHelper.insertTask(_newTask);
+                              print("New task Id : $_taskId");
+                              setState(() {
+                                _taskTitle = value;
+                              });
+                            } else {
+                              await _dbHelper.updateTaskTitle(_taskId, value);
+
+                              print("Updated task title");
                             }
+                            _descriptionFocus.requestFocus();
                           },
                           style: const TextStyle(
                             fontSize: 26.0,
@@ -85,40 +104,63 @@ class _TaskPageState extends State<TaskPage> {
                     ],
                   ),
                 ),
-                const Padding(
+                /** Description section */
+                Padding(
                   padding: EdgeInsets.only(top: 8.0, bottom: 8.0),
                   child: TextField(
-                    decoration: InputDecoration(
-                        hintText: "Enter Description for the task",
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 24.0)),
+                    focusNode: _descriptionFocus,
+                    onSubmitted: (value) async {
+                      if (value != "") {
+                        _dbHelper.updateTaskDescription(_taskId, value);
+                        setState(() {
+                          _taskDesc = value;
+                        });
+                      }
+                      _todoFocus.requestFocus();
+
+                    },
+                    decoration: const InputDecoration(
+                      hintText: "Enter Description for the task",
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 24.0),
+                    ),
+                    controller: TextEditingController()..text = _taskDesc,
                   ),
                 ),
+                /** Todoos section */
                 FutureBuilder(
                     initialData: [],
                     future: _dbHelper.getTodos(_taskId),
                     builder: (context, snapshot) {
-                      final List<ToDo>? todos = snapshot.data as List<ToDo>?;
-                      return todos == null
-                          ? const Text("(undefined Task)")
-                          : Expanded(
-                              child: ListView.builder(
-                                itemCount: todos.length,
-                                itemBuilder: (context, index) {
-                                  return GestureDetector(
-                                    onTap: () {
-                                      //Switch the checkbox
-                                    },
-                                    child: ToDoWidget(
-                                        text: todos[index].title,
-                                        isDone: todos[index].isDone == 0
-                                            ? false
-                                            : true),
-                                  );
-                                },
+                      final List<ToDo> todos = snapshot.data as List<ToDo>;
+                      return Expanded(
+                        child: ListView.builder(
+                          /**
+                           * Builds all the todoo widgets and switches between done and not done
+                           * */
+                          itemCount: todos.length,
+                          itemBuilder: (context, index) {
+                            return GestureDetector(
+                              onTap: () async {
+                                if (todos[index].isDone == 0) {
+                                  await _dbHelper.updateTodoDone(
+                                      todos[index].id, 1);
+                                } else {
+                                  await _dbHelper.updateTodoDone(
+                                      todos[index].id, 0);
+                                }
+                              },
+                              child: ToDoWidget(
+                                text: todos[index].title,
+                                isDone:
+                                    todos[index].isDone == 0 ? false : true,
                               ),
                             );
+                          },
+                        ),
+                      );
                     }),
+                /** Ui for the checkboxes */
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24.0,
@@ -140,15 +182,19 @@ class _TaskPageState extends State<TaskPage> {
                       ),
                       Expanded(
                         child: TextField(
+                          focusNode: _todoFocus,
                           onSubmitted: (value) async {
                             DatabaseHelper _dbHelper = DatabaseHelper();
                             ToDo _newToDo = ToDo(
-                              taskId: widget.task.id,
+                              taskId: _taskId,
                               title: value,
                               isDone: 0,
                             );
-                            await _dbHelper.insertToDo(_newToDo);
-                            setState(() {});
+                            await _dbHelper
+                                .insertToDo(_newToDo)
+                                .then((value) {
+                              setState(() {});
+                            });
                             print("Creating new todo");
                           },
                           decoration: const InputDecoration(
@@ -165,13 +211,9 @@ class _TaskPageState extends State<TaskPage> {
               bottom: 24.0,
               right: 24.0,
               child: GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => TaskPage(task: widget.task),
-                    ),
-                  );
+                onTap: () async {
+                  await _dbHelper.deleteTask(_taskId);
+                  Navigator.pop(context);
                 },
                 child: Container(
                   width: 60.0,

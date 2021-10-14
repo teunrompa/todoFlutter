@@ -1,3 +1,5 @@
+import 'dart:ffi';
+
 import 'package:flutter/material.dart';
 import 'package:layout/database_helper.dart';
 import 'package:layout/models/task.dart';
@@ -43,33 +45,35 @@ class _HomepageState extends State<Homepage> {
                   ),
                   Expanded(
                     child: FutureBuilder(
-                      initialData: [],
+                      initialData: const [],
                       future: _dbHelper.getTasks(),
                       builder: (context, snapshot) {
-                        final List<Task>? tasks = snapshot.data as List<Task>?;
-                        return tasks == null
-                            ? const Text("Task is empty")
-                            : ScrollConfiguration(
-                                behavior: NoGlowBehaviour(),
-                                child: ListView.builder(
-                                    itemCount: tasks.length,
-                                    itemBuilder: (context, index) {
-                                      return GestureDetector(
-                                        onTap: () {
-                                          Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                  builder: (context) =>
-                                                      TaskPage(
-                                                        task: tasks[index],
-                                                      )));
-                                        },
-                                        child: TaskCardWidget(
-                                            title: tasks[index].title,
-                                            desc: tasks[index].description),
-                                      );
-                                    }),
+                        final List<Task> tasks = snapshot.data as List<Task>;
+                        return ScrollConfiguration(
+                          behavior: NoGlowBehaviour(),
+                          child: ListView.builder(
+                            itemCount: tasks.length,
+                            itemBuilder: (context, index) {
+                              return GestureDetector(
+                                onTap: () async {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => TaskPage(
+                                        task: tasks[index],
+                                      ),
+                                    ),
+                                  ).then((value) {
+                                    setState(() {});
+                                  });
+                                },
+                                child: TaskCardWidget(
+                                    title: tasks[index].title,
+                                    desc: tasks[index].description),
                               );
+                            },
+                          ),
+                        );
                       },
                     ),
                   )
